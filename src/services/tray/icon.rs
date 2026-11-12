@@ -11,7 +11,8 @@ use png::{BitDepth, ColorType, Encoder};
 use crate::Value;
 use crate::services::apps::icons;
 
-const FOLDER: &str = "amane-tray";
+// under the cache folder, on disk: a runtime folder is memory, and no process's numbers count it
+const FOLDER: &str = "tray";
 
 // the biggest side read, since a program can send any size it likes
 const LARGEST: usize = 512;
@@ -113,11 +114,17 @@ fn saved_here(icon: &Path) -> bool {
     icon.parent() == Some(&folder())
 }
 
+// $XDG_CACHE_HOME/amane/tray, a folder of its own: sweep removes every file in it that is not a shell's
 fn folder() -> PathBuf {
-    let runtime_directory =
-        env::var_os("XDG_RUNTIME_DIR").unwrap_or_else(|| env::temp_dir().into());
+    let cache = match env::var_os("XDG_CACHE_HOME").filter(|folder| !folder.is_empty()) {
+        Some(folder) => PathBuf::from(folder),
+        None => match env::var_os("HOME").filter(|home| !home.is_empty()) {
+            Some(home) => PathBuf::from(home).join(".cache"),
+            None => env::temp_dir(),
+        },
+    };
 
-    PathBuf::from(runtime_directory).join(FOLDER)
+    cache.join("amane").join(FOLDER)
 }
 
 // named after its pixels, so an icon sent again is the same file and is not decoded twice

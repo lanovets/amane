@@ -86,7 +86,7 @@ A program that quits is removed from `items()` by itself.
 `icon_path()` is a file you can draw like any other image ([Images](images.md)). Amane finds it in one of two ways:
 
 - For a program that names its icon, it looks in the program's own folder, then in your icon theme.
-- For a program that sends the picture itself, like Discord, it saves the picture as a PNG in `$XDG_RUNTIME_DIR/amane-tray`. Those files are removed when the picture changes and when the program quits.
+- For a program that sends the picture itself, like Discord, it saves the picture as a PNG in `~/.cache/amane/tray` (`$XDG_CACHE_HOME/amane/tray`), on disk so it takes no memory. Those files are removed when the picture changes and when the program quits.
 
 Overlay icons and animated icons aren't read. Tooltips aren't either, so show `title()` instead.
 
