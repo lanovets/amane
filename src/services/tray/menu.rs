@@ -131,11 +131,12 @@ pub fn open(id: u32) {
 }
 
 pub fn open_submenu(entry: i32) {
-    let request = REQUEST.load(Ordering::SeqCst);
-
     let Some((owner, path)) = address() else {
         return;
     };
+
+    // every answer is the whole menu from its root, so a late one must not replace a newer one
+    let request = REQUEST.fetch_add(1, Ordering::SeqCst) + 1;
 
     thread::spawn(move || {
         let Some(entries) = read(&owner, &path, entry) else {
