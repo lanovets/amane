@@ -1,8 +1,8 @@
 use std::time::SystemTime;
 
-use crate::{Argument, Bus, Method, Notification, Notifications, Service, Urgency, Value};
+use crate::{Argument, Bus, Method, Notification, Notifications, Service, Value};
 
-use super::{Action, Reason, image_hint};
+use super::{Action, Reason, image_hint, read_hints};
 
 const NAME: &str = "org.freedesktop.Notifications";
 
@@ -50,8 +50,8 @@ fn notify(method: &Method) {
         summary,
         body,
         actions,
-        hints,
-        _timeout,
+        hint_values,
+        timeout,
     ] = method.arguments()
     else {
         method.reply(&[]);
@@ -61,6 +61,10 @@ fn notify(method: &Method) {
 
     let (actions, has_default) = read_actions(actions);
 
+    let hints = read_hints(hint_values);
+
+    let replaces_id = replaces_id.number() as u32;
+
     let notification = Notification {
         // add() picks the real id
         id: 0,
@@ -69,19 +73,25 @@ fn notify(method: &Method) {
         summary: String::from(summary.text()),
         body: String::from(body.text()),
         icon: String::from(icon.text()),
-        image: image_hint::read(hints),
+        image: image_hint::read(hint_values),
 
-        urgency: Urgency::from_level(hints.get("urgency").number()),
+        urgency: hints.urgency,
+
+        expires: timeout.number() as i32,
+
+        transient: hints.transient,
+        sensitive: hints.sensitive,
+        category: hints.category,
+
+        replaces_id,
 
         actions,
         has_default,
 
-        resident: hints.get("resident").bool(),
+        resident: hint_values.get("resident").bool(),
 
         received: SystemTime::now(),
     };
-
-    let replaces_id = replaces_id.number() as u32;
 
     let id = Notifications::write().add(notification, replaces_id);
 

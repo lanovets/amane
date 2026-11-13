@@ -1,5 +1,7 @@
 use std::time::SystemTime;
 
+use crate::Value;
+
 #[derive(Debug, Clone)]
 pub struct Notification {
     pub(crate) id: u32,
@@ -15,6 +17,20 @@ pub struct Notification {
     pub(crate) image: String,
 
     pub(crate) urgency: Urgency,
+
+    // milliseconds the sender asked it to live: -1 is the server's default,
+    // 0 means until it is dismissed, a positive value is exact
+    pub(crate) expires: i32,
+
+    pub(crate) transient: bool,
+
+    // a password manager's marker, so a history can leave the message out
+    pub(crate) sensitive: bool,
+
+    pub(crate) category: Option<String>,
+
+    // the notification this one replaced, or 0 for a new one
+    pub(crate) replaces_id: u32,
 
     // the "default" action is kept apart, it has no button of its own
     pub(crate) actions: Vec<Action>,
@@ -80,6 +96,30 @@ impl Notification {
         self.urgency
     }
 
+    // the timeout the sender asked for, see Notifications::notify in the spec
+    pub fn expire_timeout(&self) -> i32 {
+        self.expires
+    }
+
+    // it should be shown but not kept once it closes
+    pub fn transient(&self) -> bool {
+        self.transient
+    }
+
+    // set with x-kde-passwordManagerHint: a password or a one-time code
+    pub fn sensitive(&self) -> bool {
+        self.sensitive
+    }
+
+    pub fn category(&self) -> Option<&str> {
+        self.category.as_deref()
+    }
+
+    // the id this one replaced, or 0 when it is new
+    pub fn replaces_id(&self) -> u32 {
+        self.replaces_id
+    }
+
     // the buttons to show, in the order the sender gave them
     pub fn actions(&self) -> &[Action] {
         &self.actions
@@ -108,6 +148,43 @@ impl Action {
     }
 }
 
+// the hints a notification carries, read once when it arrives
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Hints {
+    pub(crate) urgency: Urgency,
+
+    pub(crate) transient: bool,
+
+    pub(crate) sensitive: bool,
+
+    pub(crate) category: Option<String>,
+}
+
+pub(crate) fn read_hints(hints: &Value) -> Hints {
+    let category = hints.get("category").text();
+
+    Hints {
+        // a sender that leaves urgency out gets the spec's normal, not low
+        urgency: match hints.get("urgency") {
+            Value::Number(level) => Urgency::from_level(*level),
+            _ => Urgency::default(),
+        },
+
+        transient: hints.get("transient").bool(),
+
+        sensitive: sensitive(hints),
+
+        category: (!category.is_empty()).then(|| String::from(category)),
+    }
+}
+
+// the marker is a string ("secret" or "always"); some senders post a plain true
+fn sensitive(hints: &Value) -> bool {
+    let marker = hints.get("x-kde-passwordManagerHint");
+
+    marker.bool() || matches!(marker.text(), "secret" | "always")
+}
+
 impl Urgency {
     // the spec sends urgency as a byte: 0 low, 1 normal, 2 critical
     pub(crate) fn from_level(level: f64) -> Self {
@@ -116,5 +193,63 @@ impl Urgency {
             2 => Self::Critical,
             _ => Self::Normal,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use crate::Value;
+
+    use super::*;
+
+    fn hint_map(pairs: impl IntoIterator<Item = (&'static str, Value)>) -> Value {
+        Value::Map(
+            pairs
+                .into_iter()
+                .map(|(key, value)| (String::from(key), value))
+                .collect::<BTreeMap<_, _>>(),
+        )
+    }
+
+    #[test]
+    fn a_hint_map_reads_every_field_a_shell_needs() {
+        let read = read_hints(&hint_map([
+            ("urgency", Value::Number(2.0)),
+            ("transient", Value::Bool(true)),
+            ("category", Value::Text(String::from("im.received"))),
+            (
+                "x-kde-passwordManagerHint",
+                Value::Text(String::from("secret")),
+            ),
+        ]));
+
+        assert_eq!(read.urgency, Urgency::Critical);
+        assert!(read.transient);
+        assert!(read.sensitive);
+        assert_eq!(read.category.as_deref(), Some("im.received"));
+    }
+
+    #[test]
+    fn an_empty_hint_map_gives_the_defaults() {
+        let read = read_hints(&hint_map([]));
+
+        assert_eq!(read.urgency, Urgency::Normal);
+        assert!(!read.transient);
+        assert!(!read.sensitive);
+        assert!(read.category.is_none());
+    }
+
+    #[test]
+    fn the_password_marker_counts_as_a_string_or_a_boolean() {
+        let marker = |value| read_hints(&hint_map([("x-kde-passwordManagerHint", value)]));
+
+        assert!(marker(Value::Text(String::from("always"))).sensitive);
+        assert!(marker(Value::Bool(true)).sensitive);
+
+        // anything else is a notification like any other
+        assert!(!marker(Value::Text(String::from("no"))).sensitive);
+        assert!(!marker(Value::Nothing).sensitive);
     }
 }

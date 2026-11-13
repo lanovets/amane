@@ -4,6 +4,8 @@ mod server;
 
 pub use notification::{Action, Notification, Urgency};
 
+pub(crate) use notification::read_hints;
+
 use crate::Service;
 
 pub struct Notifications {
