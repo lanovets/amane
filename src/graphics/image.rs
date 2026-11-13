@@ -3,7 +3,7 @@ mod soften;
 mod svg;
 
 use std::any::TypeId;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex, PoisonError};
@@ -58,9 +58,20 @@ struct Decoded;
 // a file, the size it is shrunk to cover (none for its own size), and how far it is blurred
 type Key = (PathBuf, Option<(u32, u32)>, u32);
 
+// covers no window draws anymore are kept for reuse; past this many the
+// oldest goes, because a cover from a track half an hour ago will not return
+const KEPT: usize = 32;
+
 // every image asked for: none while it is still decoding, or when it could not be read
-static LOADED: LazyLock<Mutex<HashMap<Key, Option<Arc<Bitmap>>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+#[derive(Default)]
+struct Loaded {
+    slots: HashMap<Key, Option<Arc<Bitmap>>>,
+
+    // the keys in the order they were asked for, oldest first
+    order: VecDeque<Key>,
+}
+
+static LOADED: LazyLock<Mutex<Loaded>> = LazyLock::new(|| Mutex::new(Loaded::default()));
 
 /*
  * decoding a large image takes long enough to drop frames, so it happens
@@ -72,21 +83,64 @@ pub fn load(path: &Path, cover: Option<(u32, u32)>, blur: u32) -> Option<Arc<Bit
 
     let key = (path.to_path_buf(), cover, blur);
 
-    if let Some(image) = loaded.get(&key) {
+    if let Some(image) = loaded.slots.get(&key) {
         if image.is_none() {
             changes::note_read(TypeId::of::<Decoded>());
         }
 
-        return image.clone();
+        let image = image.clone();
+
+        touch(&mut loaded, &key);
+
+        return image;
     }
 
-    loaded.insert(key.clone(), None);
+    loaded.slots.insert(key.clone(), None);
+
+    touch(&mut loaded, &key);
+
+    trim(&mut loaded);
 
     thread::spawn(move || decode(key));
 
     changes::note_read(TypeId::of::<Decoded>());
 
     None
+}
+
+// marks the key as the most recently asked for, so trim drops the coldest first
+fn touch(loaded: &mut Loaded, key: &Key) {
+    if let Some(at) = loaded.order.iter().position(|kept| kept == key) {
+        loaded.order.remove(at);
+    }
+
+    loaded.order.push_back(key.clone());
+}
+
+/*
+ * drops the covers no window draws anymore once the cache is past its size,
+ * oldest first; a picture a window still holds stays, so nothing on screen
+ * is ever let go from under it
+ */
+fn trim(loaded: &mut Loaded) {
+    let mut excess = loaded.order.len().saturating_sub(KEPT);
+
+    let mut at = 0;
+
+    while excess > 0 && at < loaded.order.len() {
+        let key = loaded.order[at].clone();
+
+        let unheld =
+            matches!(loaded.slots.get(&key), Some(Some(image)) if Arc::strong_count(image) == 1);
+
+        if unheld {
+            loaded.slots.remove(&key);
+            loaded.order.remove(at);
+            excess -= 1;
+        } else {
+            at += 1;
+        }
+    }
 }
 
 fn decode(key: Key) {
@@ -110,28 +164,38 @@ fn decode(key: Key) {
     {
         let mut loaded = LOADED.lock().unwrap_or_else(PoisonError::into_inner);
 
-        let Some(slot @ None) = loaded.get_mut(&key) else {
+        let Some(slot @ None) = loaded.slots.get_mut(&key) else {
             return;
         };
 
         *slot = Some(Arc::new(image));
+
+        touch(&mut loaded, &key);
+
+        trim(&mut loaded);
     }
 
     changes::mark(TypeId::of::<Decoded>());
 }
 
 /*
- * frees a full size image no window shows anymore; small copies stay,
- * they cost little and decoding them again is slow
+ * frees a full size image no window shows anymore; small copies stay until
+ * trim passes its size, and decoding them again is slow
  */
 pub fn forget(image: &Arc<Bitmap>) {
     let mut loaded = LOADED.lock().unwrap_or_else(PoisonError::into_inner);
 
-    loaded.retain(|(_, cover, _), kept| {
+    loaded.slots.retain(|(_, cover, _), kept| {
         let same = kept.as_ref().is_some_and(|kept| Arc::ptr_eq(kept, image));
 
         cover.is_some() || !same
     });
+
+    let mut order = std::mem::take(&mut loaded.order);
+
+    order.retain(|key| loaded.slots.contains_key(key));
+
+    loaded.order = order;
 }
 
 // none for a file that can't be read or decoded, like one still being written
@@ -234,13 +298,19 @@ fn decode_jpeg(bytes: &[u8]) -> Option<Bitmap> {
 pub fn unused(path: &Path) {
     let mut loaded = LOADED.lock().unwrap_or_else(PoisonError::into_inner);
 
-    loaded.retain(|(file, cover, _), kept| {
+    loaded.slots.retain(|(file, cover, _), kept| {
         let unheld = kept
             .as_ref()
             .is_none_or(|kept| Arc::strong_count(kept) == 1);
 
         file != path || cover.is_some() || !unheld
     });
+
+    let mut order = std::mem::take(&mut loaded.order);
+
+    order.retain(|key| loaded.slots.contains_key(key));
+
+    loaded.order = order;
 }
 
 #[cfg(test)]
@@ -267,7 +337,40 @@ mod tests {
     fn held(path: &Path) -> bool {
         let loaded = LOADED.lock().unwrap_or_else(PoisonError::into_inner);
 
-        loaded.contains_key(&(path.to_path_buf(), None, 0))
+        loaded.slots.contains_key(&(path.to_path_buf(), None, 0))
+    }
+
+    #[test]
+    fn covers_nobody_draws_are_trimmed_but_a_drawn_one_stays() {
+        let mut cache = Loaded::default();
+
+        let cover = Some((8, 8));
+
+        let drawn = (PathBuf::from("/tmp/drawn.png"), cover, 0);
+        let image = Arc::new(Bitmap::empty());
+
+        cache.slots.insert(drawn.clone(), Some(Arc::clone(&image)));
+        cache.order.push_back(drawn.clone());
+
+        for index in 0..KEPT + 4 {
+            let key = (PathBuf::from(format!("/tmp/cover-{index}.png")), cover, 0);
+
+            cache
+                .slots
+                .insert(key.clone(), Some(Arc::new(Bitmap::empty())));
+            cache.order.push_back(key);
+        }
+
+        trim(&mut cache);
+
+        // the oldest covers go, and the map never grows past the limit
+        assert!(cache.slots.len() <= KEPT + 1);
+        assert!(cache.slots.contains_key(&drawn));
+        assert!(
+            !cache
+                .slots
+                .contains_key(&(PathBuf::from("/tmp/cover-0.png"), cover, 0))
+        );
     }
 
     #[test]
