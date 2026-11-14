@@ -168,6 +168,24 @@ fn view() -> LayerWindow {
 
 If `listen` panics, for example because a program it talks to went away, Amane prints a message and starts it again after 5 seconds. If `listen` returns, the Service keeps its last value and stops updating.
 
+A Service that shows another Service's data can wait for that Service's change instead of polling for it. `stamp()` counts the changes so far, and `wait(seen, timeout)` sleeps until the count moves past `seen`, or returns at the timeout with the count unchanged. `refresh()` is the default loop's one `update()` under a write, and it redraws nothing when nothing changed:
+
+```rust,ignore
+fn listen() {
+    loop {
+        // what the thread last looked at, so a change after it is not missed
+        let seen = Notifications::stamp();
+
+        // read Notifications under a write only when something is new
+        Self::refresh();
+
+        // a new notification ends this at once; the timeout is what still
+        // runs the daily sweep of expired rows on a quiet session
+        Notifications::wait(seen, Duration::from_secs(60));
+    }
+}
+```
+
 ## Several Services in one view
 
 A view can read as many Services as it likes:

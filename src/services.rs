@@ -67,13 +67,32 @@ pub trait Service: Send + Sync + Sized + 'static {
         loop {
             thread::sleep(Self::interval());
 
-            let mut service = Self::write();
-
-            // a poll that found nothing new redraws nothing
-            if !service.update() {
-                service.quiet();
-            }
+            Self::refresh();
         }
+    }
+
+    // one update under a write, staying quiet when nothing a window shows
+    // changed: the body of the default loop, for a listen that waits for
+    // something else first
+    fn refresh() {
+        let mut service = Self::write();
+
+        // a poll that found nothing new redraws nothing
+        if !service.update() {
+            service.quiet();
+        }
+    }
+
+    // how many times this service changed so far: with `wait`, a service that
+    // shows another one's data waits for the change instead of polling for it
+    fn stamp() -> u64 {
+        changes::stamp(TypeId::of::<Self>())
+    }
+
+    // blocks until this service changes after `seen`, or `timeout` passes; the
+    // stamp it answers is `seen` when the wait ran out
+    fn wait(seen: u64, timeout: Duration) -> u64 {
+        changes::wait(TypeId::of::<Self>(), seen, timeout)
     }
 
     fn read() -> RwLockReadGuard<'static, Self> {

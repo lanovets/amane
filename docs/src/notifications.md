@@ -99,6 +99,22 @@ Each `Action` has `key()`, to pass to `invoke`, and `label()`, the text to show 
 
 After an action runs, the notification closes, unless the sender asked for it to stay.
 
+## Waiting for the next one
+
+A Service that records notifications doesn't have to poll `list()`. `Notifications::stamp()` counts the changes so far, and `wait` sleeps until the next one arrives:
+
+```rust,ignore
+loop {
+    let seen = Notifications::stamp();
+
+    Self::refresh();
+
+    Notifications::wait(seen, Duration::from_secs(60));
+}
+```
+
+A notification wakes that thread at once, so a card lands in the same frame the notification arrived. [State and Services](services.md) covers `stamp`, `wait` and `refresh`.
+
 ## Action buttons
 
 ```rust,ignore
