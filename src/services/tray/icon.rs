@@ -178,12 +178,12 @@ fn write(path: &Path, width: usize, height: usize, pixels: &[u8]) -> Option<()> 
 /*
  * a program sends its icon in several sizes, each as (width, height, bytes);
  * of the ones that are as long as they say, the smallest with both sides at
- * least WANTED comes back, or the smallest of all when none is that big, as
+ * least WANTED comes back, or the largest of all when none is that big, as
  * rgba. a bigger one would be saved, read and shrunk again for nothing
  */
 fn chosen(pixmaps: &Value) -> Option<(usize, usize, Vec<u8>)> {
     let mut big_enough: Option<(usize, usize, &[Value])> = None;
-    let mut smallest: Option<(usize, usize, &[Value])> = None;
+    let mut largest: Option<(usize, usize, &[Value])> = None;
 
     for pixmap in pixmaps.list() {
         let [width, height, bytes] = pixmap.list() else {
@@ -206,8 +206,8 @@ fn chosen(pixmaps: &Value) -> Option<(usize, usize, Vec<u8>)> {
 
         let area = width * height;
 
-        if smallest.is_none_or(|(held_width, held_height, _)| area < held_width * held_height) {
-            smallest = Some((width, height, bytes));
+        if largest.is_none_or(|(held_width, held_height, _)| area > held_width * held_height) {
+            largest = Some((width, height, bytes));
         }
 
         if width >= WANTED
@@ -218,7 +218,7 @@ fn chosen(pixmaps: &Value) -> Option<(usize, usize, Vec<u8>)> {
         }
     }
 
-    let (width, height, bytes) = big_enough.or(smallest)?;
+    let (width, height, bytes) = big_enough.or(largest)?;
 
     let mut pixels = Vec::with_capacity(bytes.len());
 
@@ -264,14 +264,29 @@ mod tests {
 
         assert_eq!((width, height), (32, 32));
 
-        // an app with only small icons still gets one
-        let small = Value::List(vec![square(24), square(16)]);
+        // an app with only small icons gets the biggest one available
+        let small = Value::List(vec![square(1), square(16), square(24)]);
 
         let (width, height, _) = chosen(&small).expect("failed to pick a small pixmap");
 
-        assert_eq!((width, height), (16, 16));
+        assert_eq!((width, height), (24, 24));
 
         assert!(chosen(&Value::Nothing).is_none());
+    }
+
+    #[test]
+    fn two_pixmaps_of_the_same_size_keep_the_first() {
+        let square = |side: usize| pixmap(side as f64, side as f64, &vec![7; side * side * 4]);
+
+        // the same area, a different shape: neither is 32 px, so the fallback
+        // takes one of them, and the first is the one that stays
+        let wide = pixmap(32.0, 8.0, &vec![7; 32 * 8 * 4]);
+
+        let same = Value::List(vec![square(16), wide]);
+
+        let (width, height, _) = chosen(&same).expect("failed to pick a pixmap");
+
+        assert_eq!((width, height), (16, 16));
     }
 
     #[test]
