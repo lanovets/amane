@@ -117,23 +117,38 @@ fn touch(loaded: &mut Loaded, key: &Key) {
     loaded.order.push_back(key.clone());
 }
 
+// a shrunk image that no window holds, the only kind the cache keeps for reuse
+fn unheld_cover(loaded: &Loaded, key: &Key) -> bool {
+    key.1.is_some()
+        && matches!(
+            loaded.slots.get(key),
+            Some(Some(image)) if Arc::strong_count(image) == 1
+        )
+}
+
 /*
  * drops the covers no window draws anymore once the cache is past its size,
  * oldest first; a picture a window still holds stays, so nothing on screen
  * is ever let go from under it
  */
 fn trim(loaded: &mut Loaded) {
-    let mut excess = loaded.order.len().saturating_sub(KEPT);
+    // only the covers nobody holds are counted: a picture a window draws, a
+    // full size one and one still decoding are not part of what the cache
+    // keeps, so they must not shrink what it may keep
+    let unheld = loaded
+        .order
+        .iter()
+        .filter(|key| unheld_cover(loaded, key))
+        .count();
+
+    let mut excess = unheld.saturating_sub(KEPT);
 
     let mut at = 0;
 
     while excess > 0 && at < loaded.order.len() {
         let key = loaded.order[at].clone();
 
-        let unheld =
-            matches!(loaded.slots.get(&key), Some(Some(image)) if Arc::strong_count(image) == 1);
-
-        if unheld {
+        if unheld_cover(loaded, &key) {
             loaded.slots.remove(&key);
             loaded.order.remove(at);
             excess -= 1;
@@ -371,6 +386,54 @@ mod tests {
                 .slots
                 .contains_key(&(PathBuf::from("/tmp/cover-0.png"), cover, 0))
         );
+    }
+
+    #[test]
+    fn the_cover_budget_counts_only_the_covers_nobody_holds() {
+        let mut cache = Loaded::default();
+
+        let cover = Some((8, 8));
+
+        // a cover a window holds, a full size image and a decode in flight
+        let mut held = Vec::new();
+
+        for index in 0..KEPT {
+            let drawn = (PathBuf::from(format!("/tmp/drawn-{index}.png")), cover, 0);
+            let image = Arc::new(Bitmap::empty());
+            cache.slots.insert(drawn.clone(), Some(Arc::clone(&image)));
+            cache.order.push_back(drawn);
+            held.push(image);
+
+            let full = (PathBuf::from(format!("/tmp/full-{index}.png")), None, 0);
+            cache
+                .slots
+                .insert(full.clone(), Some(Arc::new(Bitmap::empty())));
+            cache.order.push_back(full);
+
+            let decoding = (PathBuf::from(format!("/tmp/decoding-{index}.png")), cover, 0);
+            cache.slots.insert(decoding.clone(), None);
+            cache.order.push_back(decoding);
+        }
+
+        // and one cover more than the cache keeps
+        for index in 0..=KEPT {
+            let key = (PathBuf::from(format!("/tmp/cover-{index}.png")), cover, 0);
+            cache
+                .slots
+                .insert(key.clone(), Some(Arc::new(Bitmap::empty())));
+            cache.order.push_back(key);
+        }
+
+        trim(&mut cache);
+
+        // the oldest cover nobody holds is the one that goes
+        assert!(!cache.slots.contains_key(&(PathBuf::from("/tmp/cover-0.png"), cover, 0)));
+        assert!(cache.slots.contains_key(&(PathBuf::from("/tmp/cover-1.png"), cover, 0)));
+
+        // and the drawn one, the full size one and the decode stay
+        assert!(cache.slots.contains_key(&(PathBuf::from("/tmp/drawn-0.png"), cover, 0)));
+        assert!(cache.slots.contains_key(&(PathBuf::from("/tmp/full-0.png"), None, 0)));
+        assert!(cache.slots.contains_key(&(PathBuf::from("/tmp/decoding-0.png"), cover, 0)));
     }
 
     #[test]
