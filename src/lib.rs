@@ -27,7 +27,7 @@ mod window;
 
 pub use animation::{Animation, Blend, Easing, request_frame};
 pub use app::App;
-pub use dbus::{Argument, Bus, Method, Signal, Value};
+pub use dbus::{Argument, Bus, DbusError, Method, Signal, Value};
 pub use files::watch_file;
 pub use full::Full;
 pub use graphics::{Cap, Color, Gradient, Weight};
@@ -46,9 +46,10 @@ pub use placement::{Align, Center, End, Justify, Padding, Size, Start};
 pub use process::{lines, output, spawn};
 pub use services::{
     AccessPoint, Action, Apps, Audio, Battery, Bluetooth, BluetoothDevice, Brightness, Cpu,
-    DesktopApp, Fingerprint, Link, Lock, Media, MediaPlayer, Memory, MenuEntry, MenuKind, Network,
-    Notification, Notifications, Palette, Pam, PamConfig, PamError, PamMessage, PamMessageKind,
-    PamResult, Service, Tray, TrayItem, TrayMenu, TrayStatus, Urgency, Workspace, Workspaces,
+    DesktopApp, Fingerprint, Identity, Link, Lock, Media, MediaPlayer, Memory, MenuEntry, MenuKind,
+    Network, Notification, Notifications, Palette, Pam, PamConfig, PamError, PamMessage,
+    PamMessageKind, PamResult, Polkit, PolkitError, PolkitMessage, PolkitMessageKind, PolkitResult,
+    Service, Tray, TrayItem, TrayMenu, TrayStatus, Urgency, Workspace, Workspaces,
 };
 pub use style::{Fill, Image, Mask, Radius, Shadow};
 pub use vulkan_drivers::limit_vulkan_drivers;

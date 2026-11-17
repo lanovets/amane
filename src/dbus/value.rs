@@ -31,6 +31,9 @@ pub enum Argument {
 
     Unsigned(u32),
 
+    // a large unsigned number, like the start time of a process in milliseconds
+    UnsignedLong(u64),
+
     Long(i64),
 
     Float(f64),
@@ -54,6 +57,9 @@ pub enum Argument {
 
     // a value that carries its own kind, like the new value of a property
     Variant(Box<Argument>),
+
+    // values of their own kinds grouped as one, like a polkit subject with its details
+    Struct(Vec<Argument>),
 }
 
 /*
@@ -117,6 +123,12 @@ impl From<i32> for Argument {
 impl From<u32> for Argument {
     fn from(value: u32) -> Self {
         Self::Unsigned(value)
+    }
+}
+
+impl From<u64> for Argument {
+    fn from(value: u64) -> Self {
+        Self::UnsignedLong(value)
     }
 }
 

@@ -71,6 +71,11 @@ pub fn arguments(message: &Message) -> Vec<Value> {
 }
 
 pub fn body(arguments: &[Argument]) -> Structure<'static> {
+    fields(arguments)
+}
+
+// a struct keeps its own parentheses, so it stays one value among the others
+fn fields(arguments: &[Argument]) -> Structure<'static> {
     let mut builder = StructureBuilder::new();
 
     for argument in arguments {
@@ -85,6 +90,7 @@ fn variant(argument: &Argument) -> Variant<'static> {
         Argument::Bool(value) => Variant::Bool(*value),
         Argument::Int(number) => Variant::I32(*number),
         Argument::Unsigned(number) => Variant::U32(*number),
+        Argument::UnsignedLong(number) => Variant::U64(*number),
         Argument::Long(number) => Variant::I64(*number),
         Argument::Float(number) => Variant::F64(*number),
         Argument::Text(text) => Variant::from(text.clone()),
@@ -94,6 +100,7 @@ fn variant(argument: &Argument) -> Variant<'static> {
         Argument::Map(map) => Variant::from(entries(map)),
         Argument::Groups(groups) => Variant::from(grouped(groups)),
         Argument::Variant(inner) => Variant::Value(Box::new(variant(inner))),
+        Argument::Struct(arguments) => Variant::Structure(fields(arguments)),
     }
 }
 
@@ -125,4 +132,23 @@ fn object_path(path: &str) -> Variant<'static> {
         .expect("failed to use object path: it must look like /org/example");
 
     Variant::ObjectPath(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_struct_argument_stays_one_value_of_its_own_kind() {
+        let details = BTreeMap::from([(String::from("session-id"), Argument::from("3"))]);
+        let arguments = [
+            Argument::Struct(vec![Argument::from("unix-session"), Argument::Map(details)]),
+            Argument::from("cookie"),
+        ];
+
+        assert_eq!(
+            body(&arguments).signature().to_string_no_parens(),
+            "(sa{sv})s"
+        );
+    }
 }
