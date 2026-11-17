@@ -41,7 +41,9 @@ pub use network::{AccessPoint, Link, Network};
 pub use notifications::{Action, Notification, Notifications, Urgency};
 pub use palette::Palette;
 pub use pam::{Pam, PamConfig, PamError, PamMessage, PamMessageKind, PamResult};
-pub use polkit::{Identity, Polkit, PolkitError, PolkitMessage, PolkitMessageKind, PolkitResult};
+pub use polkit::{
+    Identity, Polkit, PolkitError, PolkitMessage, PolkitMessageKind, PolkitRequest, PolkitResult,
+};
 pub use tray::{MenuEntry, MenuKind, Tray, TrayItem, TrayMenu, TrayStatus};
 pub use workspace::Workspace;
 pub use workspaces::Workspaces;

@@ -5,11 +5,13 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::dbus::Value;
 
-use super::{Identity, Polkit, PolkitError, PolkitMessageKind, PolkitResult, Service};
+use super::{
+    Identity, Polkit, PolkitError, PolkitMessageKind, PolkitRequest, PolkitResult, Service,
+};
 
 static SERIAL: Mutex<()> = Mutex::new(());
 
@@ -66,8 +68,14 @@ impl Fixture {
     fn new(script: &str) -> Self {
         let serial = SERIAL.lock().unwrap_or_else(PoisonError::into_inner);
 
+        // the clock keeps a run from a recycled pid, so no helper left over from an earlier one holds the same script
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|elapsed| elapsed.subsec_nanos())
+            .unwrap_or(0);
+
         let directory = std::env::temp_dir().join(format!(
-            "amane-polkit-{}-{}",
+            "amane-polkit-{}-{stamp}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed),
         ));
@@ -118,6 +126,15 @@ impl Drop for Fixture {
     }
 }
 
+fn request() -> PolkitRequest {
+    PolkitRequest {
+        action_id: String::from("org.example.amane-test"),
+        message: String::from("Authentication is required to test"),
+        icon: String::from("dialog-password"),
+        details: BTreeMap::from([(String::from("program"), String::from("/usr/bin/test"))]),
+    }
+}
+
 fn identities(names: &[&str]) -> Vec<Identity> {
     names
         .iter()
@@ -164,7 +181,7 @@ fn queued() -> usize {
 fn each_prompt_gets_its_own_answer_and_the_messages_are_kept() {
     let fixture = Fixture::new(TWO_PROMPTS);
 
-    Polkit::submit("cookie", identities(&["amane-test"]), None);
+    Polkit::submit("cookie", request(), identities(&["amane-test"]), None);
 
     let password = prompt("Password:");
 
@@ -172,6 +189,20 @@ fn each_prompt_gets_its_own_answer_and_the_messages_are_kept() {
         Polkit::read().prompt().unwrap().kind(),
         PolkitMessageKind::Prompt { visible: false }
     );
+
+    // the action polkitd asks about is kept for the dialog's own text
+    let polkit = Polkit::read();
+    let action = polkit.request().expect("the action of the active request");
+
+    assert_eq!(action.action_id(), "org.example.amane-test");
+    assert_eq!(action.message(), "Authentication is required to test");
+    assert_eq!(action.icon(), "dialog-password");
+    assert_eq!(
+        action.details().get("program").map(String::as_str),
+        Some("/usr/bin/test")
+    );
+
+    drop(polkit);
 
     assert_eq!(
         Polkit::respond(password, "two\nlines"),
@@ -218,6 +249,7 @@ fn each_prompt_gets_its_own_answer_and_the_messages_are_kept() {
     );
 
     assert!(Polkit::read().prompt().is_none());
+    assert!(Polkit::read().request().is_none());
     assert_eq!(fixture.user().as_deref(), Some("amane-test"));
 }
 
@@ -225,7 +257,7 @@ fn each_prompt_gets_its_own_answer_and_the_messages_are_kept() {
 fn a_refusal_keeps_the_message_the_helper_gave() {
     let _fixture = Fixture::new(REFUSED);
 
-    Polkit::submit("cookie", identities(&["amane-test"]), None);
+    Polkit::submit("cookie", request(), identities(&["amane-test"]), None);
 
     assert_eq!(complete(), PolkitResult::Rejected);
 
@@ -245,7 +277,7 @@ fn a_refusal_keeps_the_message_the_helper_gave() {
 fn cancelling_wakes_a_waiting_prompt_and_allows_another_request() {
     let _fixture = Fixture::new(WAITING);
 
-    Polkit::submit("first", identities(&["amane-test"]), None);
+    Polkit::submit("first", request(), identities(&["amane-test"]), None);
 
     let old = prompt("Password:");
 
@@ -258,7 +290,7 @@ fn cancelling_wakes_a_waiting_prompt_and_allows_another_request() {
         Err(PolkitError::NoPrompt)
     );
 
-    Polkit::submit("second", identities(&["amane-test"]), None);
+    Polkit::submit("second", request(), identities(&["amane-test"]), None);
 
     let current = prompt("Password:");
 
@@ -273,11 +305,11 @@ fn cancelling_wakes_a_waiting_prompt_and_allows_another_request() {
 fn polkit_cancels_a_queued_request_without_touching_the_active_one() {
     let _fixture = Fixture::new(NAMED);
 
-    Polkit::submit("active", identities(&["amane-test"]), None);
+    Polkit::submit("active", request(), identities(&["amane-test"]), None);
 
     let password = prompt("Password for active:");
 
-    Polkit::submit("queued", identities(&["amane-test"]), None);
+    Polkit::submit("queued", request(), identities(&["amane-test"]), None);
 
     assert_eq!(queued(), 1);
 
@@ -305,11 +337,11 @@ fn polkit_cancels_a_queued_request_without_touching_the_active_one() {
 fn requests_wait_their_turn_instead_of_replacing_the_active_one() {
     let _fixture = Fixture::new(NAMED);
 
-    Polkit::submit("first", identities(&["amane-test"]), None);
+    Polkit::submit("first", request(), identities(&["amane-test"]), None);
 
     let first = prompt("Password for first:");
 
-    Polkit::submit("second", identities(&["amane-test"]), None);
+    Polkit::submit("second", request(), identities(&["amane-test"]), None);
 
     assert_eq!(queued(), 1);
     assert_eq!(
@@ -333,7 +365,7 @@ fn requests_wait_their_turn_instead_of_replacing_the_active_one() {
 fn the_identity_picked_before_the_helper_starts_is_the_one_it_runs_for() {
     let fixture = Fixture::new(WAITING);
 
-    Polkit::submit("cookie", identities(&["first", "second"]), None);
+    Polkit::submit("cookie", request(), identities(&["first", "second"]), None);
 
     // nothing is asked until one of them is picked
     assert_eq!(fixture.user(), None);
@@ -360,7 +392,7 @@ fn the_identity_picked_before_the_helper_starts_is_the_one_it_runs_for() {
 fn a_view_can_read_the_service_while_the_helper_waits_for_an_answer() {
     let _fixture = Fixture::new(WAITING);
 
-    Polkit::submit("cookie", identities(&["amane-test"]), None);
+    Polkit::submit("cookie", request(), identities(&["amane-test"]), None);
 
     let password = prompt("Password:");
 

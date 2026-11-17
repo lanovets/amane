@@ -48,8 +48,8 @@ pub use services::{
     AccessPoint, Action, Apps, Audio, Battery, Bluetooth, BluetoothDevice, Brightness, Cpu,
     DesktopApp, Fingerprint, Identity, Link, Lock, Media, MediaPlayer, Memory, MenuEntry, MenuKind,
     Network, Notification, Notifications, Palette, Pam, PamConfig, PamError, PamMessage,
-    PamMessageKind, PamResult, Polkit, PolkitError, PolkitMessage, PolkitMessageKind, PolkitResult,
-    Service, Tray, TrayItem, TrayMenu, TrayStatus, Urgency, Workspace, Workspaces,
+    PamMessageKind, PamResult, Polkit, PolkitError, PolkitMessage, PolkitMessageKind, PolkitRequest,
+    PolkitResult, Service, Tray, TrayItem, TrayMenu, TrayStatus, Urgency, Workspace, Workspaces,
 };
 pub use style::{Fill, Image, Mask, Radius, Shadow};
 pub use vulkan_drivers::limit_vulkan_drivers;

@@ -6,7 +6,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::panic::{self, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -17,7 +17,9 @@ use std::thread;
 use crate::Service;
 use crate::dbus::{Argument, Bus, Method, Value};
 
-pub use types::{Identity, PolkitError, PolkitMessage, PolkitMessageKind, PolkitResult};
+pub use types::{
+    Identity, PolkitError, PolkitMessage, PolkitMessageKind, PolkitRequest, PolkitResult,
+};
 
 const NAME: &str = "org.freedesktop.PolicyKit1";
 
@@ -73,6 +75,8 @@ struct Request {
 
     // taken by whoever replies, and none in a test that has no caller to answer
     method: Option<Method>,
+
+    action: PolkitRequest,
 
     identities: Vec<Identity>,
 }
@@ -160,6 +164,11 @@ impl Polkit {
 
     pub fn result(&self) -> Option<&PolkitResult> {
         self.result.as_ref()
+    }
+
+    // the action behind the request being answered
+    pub fn request(&self) -> Option<&PolkitRequest> {
+        self.active.as_ref().map(|active| &active.request.action)
     }
 
     pub fn identities(&self) -> &[Identity] {
@@ -329,13 +338,19 @@ impl Polkit {
     }
 
     // the entry polkitd's calls end in, and the one a test drives with no caller to answer
-    fn submit(cookie: &str, identities: Vec<Identity>, method: Option<Method>) {
+    fn submit(
+        cookie: &str,
+        action: PolkitRequest,
+        identities: Vec<Identity>,
+        method: Option<Method>,
+    ) {
         {
             let mut polkit = Self::write();
 
             polkit.queue.push_back(Request {
                 cookie: String::from(cookie),
                 method,
+                action,
                 identities,
             });
 
@@ -452,7 +467,7 @@ impl Polkit {
 fn begin(method: Method) {
     let arguments = method.arguments();
 
-    let [.., cookie, identities] = arguments else {
+    let [action, message, icon, details, cookie, identities, ..] = arguments else {
         method.reply_error(FAILED, "unexpected BeginAuthentication arguments");
 
         return;
@@ -467,7 +482,29 @@ fn begin(method: Method) {
         return;
     }
 
-    Polkit::submit(&cookie, users, Some(method));
+    let action = PolkitRequest {
+        action_id: String::from(action.text()),
+        message: String::from(message.text()),
+        icon: String::from(icon.text()),
+        details: strings(details),
+    };
+
+    Polkit::submit(&cookie, action, users, Some(method));
+}
+
+// the action's details arrive as text pairs, and a value of another kind is left out
+fn strings(details: &Value) -> BTreeMap<String, String> {
+    let Value::Map(details) = details else {
+        return BTreeMap::new();
+    };
+
+    details
+        .iter()
+        .filter_map(|(key, value)| match value {
+            Value::Text(text) => Some((key.clone(), text.clone())),
+            _ => None,
+        })
+        .collect()
 }
 
 fn cancel_authentication(method: &Method) {

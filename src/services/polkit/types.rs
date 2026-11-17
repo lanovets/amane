@@ -1,6 +1,38 @@
+use std::collections::BTreeMap;
 use std::fmt;
 
 use crate::dbus::DbusError;
+
+// what polkitd asks about: the action, the text it wrote, and what the action carries
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PolkitRequest {
+    pub(super) action_id: String,
+    pub(super) message: String,
+    pub(super) icon: String,
+    pub(super) details: BTreeMap<String, String>,
+}
+
+impl PolkitRequest {
+    // like "org.freedesktop.policykit.exec"
+    pub fn action_id(&self) -> &str {
+        &self.action_id
+    }
+
+    // the sentence to show, written by the action's own policy
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    // an icon name; empty when the action named none
+    pub fn icon(&self) -> &str {
+        &self.icon
+    }
+
+    // the values the action was asked with, like the program's path
+    pub fn details(&self) -> &BTreeMap<String, String> {
+        &self.details
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Identity {
