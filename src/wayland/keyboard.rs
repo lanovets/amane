@@ -118,10 +118,27 @@ impl WaylandState {
     pub(super) fn repeat_held_key(&mut self, event: &KeyEvent) {
         let key = to_key(event);
 
-        if repeats(key, focus::any()) {
+        let typing = typing_keys_repeat(focus::any(), self.focused_repeat_text());
+
+        if repeats(key, typing) {
             self.send_key(key);
         }
     }
+
+    // a window that takes typing in its own field wants text keys repeated too, see LayerWindow::repeat_text
+    fn focused_repeat_text(&mut self) -> bool {
+        let Some(surface) = self.keyboard_focus.clone() else {
+            return false;
+        };
+
+        self.window(&surface)
+            .is_some_and(|window| window.repeat_text)
+    }
+}
+
+// a focused text input repeats typing, and so does a window whose own field takes it
+fn typing_keys_repeat(focused_input: bool, window_repeat_text: bool) -> bool {
+    focused_input || window_repeat_text
 }
 
 /*
@@ -176,8 +193,21 @@ fn character(event: &KeyEvent) -> Key {
 
 #[cfg(test)]
 mod tests {
-    use super::repeats;
+    use super::{repeats, typing_keys_repeat};
     use crate::Key;
+
+    #[test]
+    fn a_window_that_takes_text_repeats_typing_keys() {
+        let typing = typing_keys_repeat(false, true);
+
+        assert!(repeats(Key::Character('a'), typing));
+        assert!(repeats(Key::Backspace, typing));
+
+        let quiet = typing_keys_repeat(false, false);
+
+        assert!(!repeats(Key::Character('a'), quiet));
+        assert!(!repeats(Key::Backspace, quiet));
+    }
 
     #[test]
     fn typing_repeats_but_confirming_does_not() {

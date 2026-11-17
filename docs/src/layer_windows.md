@@ -111,7 +111,13 @@ A layer window gets no keys by default. To type into it, ask for keyboard focus:
 | `OnDemand` | Gets keys after you click it, like a normal window. Use it for a search box in a panel. |
 | `Exclusive` | Takes all keys as long as it's open. Use it for launchers and menus. |
 
-[Input](input.md) covers what to do with the keys.
+A window that takes text in a field of its own, rather than a `TextInput`, asks for the typing keys to repeat as well:
+
+```rust,ignore
+.repeat_text(true)
+```
+
+Without it a held letter or `Backspace` counts once, which is what a window with letter shortcuts wants. [Input](input.md) covers what to do with the keys.
 
 ## Hiding and showing
 

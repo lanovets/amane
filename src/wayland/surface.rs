@@ -63,6 +63,9 @@ pub struct OpenWindow {
     pub pointer: Pointer,
     pub on_key: Option<KeyHandler>,
 
+    // text keys repeat to on_key, see LayerWindow::repeat_text
+    pub repeat_text: bool,
+
     // the gpu draws into the surface, so it has to go first when both are dropped
     pub gpu: Gpu,
 
@@ -214,11 +217,11 @@ impl Content {
         }
     }
 
-    // the widgets and the key handler, drawn and used the same way by every kind of window
-    pub fn into_parts(self) -> (Option<Box<dyn Widget>>, Option<KeyHandler>) {
+    // the widgets, the key handler and whether text repeats, used the same way by every kind of window
+    pub fn into_parts(self) -> (Option<Box<dyn Widget>>, Option<KeyHandler>, bool) {
         match self {
-            Content::Layer(window) => (window.root, window.on_key),
-            Content::Normal(window) => (window.root, window.on_key),
+            Content::Layer(window) => (window.root, window.on_key, window.repeat_text),
+            Content::Normal(window) => (window.root, window.on_key, false),
         }
     }
 }

@@ -32,6 +32,9 @@ pub struct LayerWindow {
     pub(crate) root: Option<Box<dyn Widget>>,
 
     pub(crate) on_key: Option<KeyHandler>,
+
+    // a window that takes typing in a field of its own, so text keys repeat to on_key
+    pub(crate) repeat_text: bool,
 }
 
 pub struct LayerWindowNeedsWidth;
@@ -224,6 +227,16 @@ impl LayerWindow {
         self
     }
 
+    /*
+     * typing keys repeat to on_key, for a window whose own field takes the text; without it a held
+     * letter or Backspace counts once, so a shortcut key cannot fire over and over
+     */
+    pub fn repeat_text(mut self, repeats: bool) -> Self {
+        self.repeat_text = repeats;
+
+        self
+    }
+
     pub fn child(mut self, child: impl Widget + 'static) -> Self {
         self.root = Some(Box::new(child));
 
@@ -266,6 +279,8 @@ impl LayerWindowNeedsHeight {
             root: None,
 
             on_key: None,
+
+            repeat_text: false,
         }
     }
 }

@@ -37,7 +37,7 @@ impl OpenWindow {
         let solid = content.solid();
         let picture = content.picture();
 
-        let (root, on_key) = content.into_parts();
+        let (root, on_key, repeat_text) = content.into_parts();
 
         // a window without a child has nothing to show, which is a mistake but not a crash
         let Some(root) = root else {
@@ -61,6 +61,7 @@ impl OpenWindow {
         self.pointer.set_targets(frame.targets);
 
         self.on_key = on_key;
+        self.repeat_text = repeat_text;
 
         /*
          * an animation that has not arrived yet needs the next frame too; asking
