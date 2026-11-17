@@ -191,7 +191,7 @@ impl Polkit {
         let arguments = [
             subject::current(),
             Argument::from(locale()),
-            Argument::Path(String::from(PATH)),
+            Argument::from(PATH),
         ];
 
         Bus::system()
@@ -211,7 +211,7 @@ impl Polkit {
 
     /// Gives the slot back, so another agent answers the next request.
     pub fn unregister() {
-        let arguments = [subject::current(), Argument::Path(String::from(PATH))];
+        let arguments = [subject::current(), Argument::from(PATH)];
 
         let _ = Bus::system().call_result(
             NAME,
