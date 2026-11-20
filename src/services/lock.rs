@@ -8,6 +8,7 @@ use crate::{PamConfig, PamError, PamResult, Service};
 
 // set by Lock::start, taken by the event loop when it wakes
 static REQUESTED: AtomicBool = AtomicBool::new(false);
+static LOST: AtomicBool = AtomicBool::new(false);
 
 // the pam service file in /etc/pam.d that checks the password
 const PAM_SERVICE: &str = "login";
@@ -120,6 +121,16 @@ impl Lock {
 
     pub(crate) fn ended() {
         fingerprint::end();
+    }
+
+    // the compositor ended a lock the shell did not unlock; taken by the shell
+    pub fn lost() -> bool {
+        LOST.swap(false, Ordering::AcqRel)
+    }
+
+    pub(crate) fn compositor_ended() {
+        LOST.store(true, Ordering::Release);
+        Self::ended();
     }
 
     /*

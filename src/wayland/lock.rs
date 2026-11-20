@@ -138,7 +138,7 @@ impl SessionLockHandler for WaylandState {
 
         self.session_lock = None;
 
-        Lock::ended();
+        Lock::compositor_ended();
 
         self.close_lock_screens();
     }
