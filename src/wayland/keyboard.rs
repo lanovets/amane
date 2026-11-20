@@ -81,10 +81,11 @@ impl KeyboardHandler for WaylandState {
         _: &QueueHandle<Self>,
         _: &WlKeyboard,
         _: u32,
-        _: Modifiers,
+        modifiers: Modifiers,
         _: RawModifiers,
         _: u32,
     ) {
+        crate::input::set_modifiers(modifiers.ctrl, modifiers.alt, modifiers.shift);
     }
 }
 

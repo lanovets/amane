@@ -1,8 +1,23 @@
 pub mod focus;
 mod pointer;
+
+use std::sync::atomic::{AtomicU8, Ordering};
 mod target;
 
 pub use pointer::Pointer;
+
+// the modifiers of the last key event, readable by views that handle a key
+static MODIFIERS: AtomicU8 = AtomicU8::new(0);
+
+pub fn modifiers() -> (bool, bool, bool) {
+    let bits = MODIFIERS.load(Ordering::Relaxed);
+    (bits & 1 != 0, bits & 2 != 0, bits & 4 != 0)
+}
+
+pub(crate) fn set_modifiers(ctrl: bool, alt: bool, shift: bool) {
+    let bits = u8::from(ctrl) | (u8::from(alt) << 1) | (u8::from(shift) << 2);
+    MODIFIERS.store(bits, Ordering::Relaxed);
+}
 pub use target::{Handlers, KeyHandler, Target, clip};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
