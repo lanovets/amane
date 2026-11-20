@@ -27,7 +27,7 @@ impl Service for Apps {
     }
 
     fn interval() -> Duration {
-        Duration::from_secs(30)
+        Duration::from_secs(300)
     }
 
     // scanned outside the lock, so a view reading the list never waits on the disk

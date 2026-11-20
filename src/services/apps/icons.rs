@@ -148,6 +148,13 @@ fn user_theme() -> Option<String> {
 
 // where gnome and gtk 4 keep it when gtk 3's file doesn't say, like "'Papirus-Dark'"
 fn dconf_theme() -> Option<String> {
+    static THEME: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    THEME
+        .get_or_init(|| read_dconf_theme())
+        .clone()
+}
+
+fn read_dconf_theme() -> Option<String> {
     let output = Command::new("dconf")
         .args(["read", "/org/gnome/desktop/interface/icon-theme"])
         .stderr(Stdio::null())
