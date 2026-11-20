@@ -1,8 +1,17 @@
 use std::path::PathBuf;
+use std::sync::Mutex;
 
+use super::Point;
 use crate::{Button, Cursor, Scroll};
 
 use super::Target;
+
+static POINT: Mutex<(f32, f32)> = Mutex::new((0.0, 0.0));
+
+pub fn position() -> Point {
+    let (x, y) = *POINT.lock().unwrap_or_else(|error| error.into_inner());
+    Point { x, y }
+}
 
 #[derive(Default)]
 pub struct Pointer {
@@ -43,6 +52,7 @@ impl Pointer {
     pub fn move_to(&mut self, x: f32, y: f32) -> bool {
         self.x = x;
         self.y = y;
+        *POINT.lock().unwrap_or_else(|error| error.into_inner()) = (x, y);
 
         let mut inside = Vec::new();
 
@@ -217,6 +227,7 @@ impl Pointer {
     pub fn drop_files(&mut self, x: f32, y: f32, files: Vec<PathBuf>) -> bool {
         self.x = x;
         self.y = y;
+        *POINT.lock().unwrap_or_else(|error| error.into_inner()) = (x, y);
 
         let Some(index) = self.find_topmost(|target| target.handlers.drop.is_some()) else {
             return false;

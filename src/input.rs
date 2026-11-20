@@ -4,7 +4,7 @@ mod pointer;
 use std::sync::atomic::{AtomicU8, Ordering};
 mod target;
 
-pub use pointer::Pointer;
+pub use pointer::{Pointer, position};
 
 // the modifiers of the last key event, readable by views that handle a key
 static MODIFIERS: AtomicU8 = AtomicU8::new(0);
