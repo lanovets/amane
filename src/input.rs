@@ -58,6 +58,8 @@ pub enum Key {
 
     End,
 
+    Delete,
+
     // a key amane has no name for yet
     Other,
 }

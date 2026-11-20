@@ -167,6 +167,7 @@ fn to_key(event: &KeyEvent) -> Key {
         Keysym::Right => Key::Right,
         Keysym::Home => Key::Home,
         Keysym::End => Key::End,
+        Keysym::Delete | Keysym::KP_Delete => Key::Delete,
         _ => character(event),
     }
 }
