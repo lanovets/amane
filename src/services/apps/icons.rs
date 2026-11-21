@@ -226,6 +226,20 @@ fn theme_icon_folders(theme: &str, roots: &[PathBuf]) -> Vec<Vec<PathBuf>> {
         .collect()
 }
 
+/*
+ * most folders hicolor lists are missing or empty, and every lookup checked each of them for two files;
+ * only for a scan, which reads the folders again next time, so an icon installed later is still found
+ */
+pub fn without_empty(icon_folders: Vec<Vec<PathBuf>>) -> Vec<Vec<PathBuf>> {
+    let has_files =
+        |folder: &PathBuf| fs::read_dir(folder).is_ok_and(|mut entries| entries.next().is_some());
+
+    icon_folders
+        .into_iter()
+        .map(|theme_icon_folders| theme_icon_folders.into_iter().filter(has_files).collect())
+        .collect()
+}
+
 pub fn look_up_icon_file_in_folder(icon_name: &str, icon_folder: &Path) -> Option<PathBuf> {
     for extension in ["svg", "png"] {
         let icon_file = icon_folder.join(format!("{icon_name}.{extension}"));
