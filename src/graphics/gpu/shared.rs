@@ -23,7 +23,9 @@ pub struct Shared {
     pub adapter: Adapter,
     pub device: Device,
     pub queue: Queue,
-    pub vello: Rc<RefCell<vello::Renderer>>,
+
+    // none until something is drawn as a vector shape, see `start_vello`
+    pub vello: Rc<RefCell<Option<vello::Renderer>>>,
 
     // how many times vello dropped its image atlas, which every window's images were in
     pub atlas_drops: Rc<Cell<u64>>,
@@ -115,14 +117,6 @@ fn open(instance: &Instance, surface: &Surface) -> Shared {
         process::exit(1);
     });
 
-    // area anti-aliasing matches how edges looked with the cpu renderer
-    let vello_options = RendererOptions {
-        antialiasing_support: AaSupport::area_only(),
-        ..RendererOptions::default()
-    };
-
-    let vello = vello::Renderer::new(&device, vello_options).expect("failed to start vello");
-
     let passes = device.create_shader_module(include_wgsl!("passes.wgsl"));
     let quads = device.create_shader_module(include_wgsl!("quads.wgsl"));
 
@@ -130,9 +124,23 @@ fn open(instance: &Instance, surface: &Surface) -> Shared {
         adapter,
         device,
         queue,
-        vello: Rc::new(RefCell::new(vello)),
+        vello: Rc::new(RefCell::new(None)),
         atlas_drops: Rc::new(Cell::new(0)),
         passes,
         quads,
     }
+}
+
+/*
+ * started by the first shape, shadow or blur: its pipelines take a few MiB of ram, and a
+ * shell drawn with rectangles, letters and images never needs them
+ */
+pub fn start_vello(device: &Device) -> vello::Renderer {
+    // area anti-aliasing matches how edges looked with the cpu renderer
+    let options = RendererOptions {
+        antialiasing_support: AaSupport::area_only(),
+        ..RendererOptions::default()
+    };
+
+    vello::Renderer::new(device, options).expect("failed to start vello")
 }
