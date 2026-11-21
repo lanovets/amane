@@ -9,6 +9,7 @@ use std::sync::LazyLock;
 use png::{BitDepth, ColorType, Encoder};
 
 use crate::Value;
+use crate::graphics::image;
 use crate::services::apps::icons;
 
 const FOLDER: &str = "amane-tray";
@@ -86,6 +87,8 @@ fn named(name: &str, folder: &str) -> Option<PathBuf> {
 pub fn remove(icon: Option<&Path>) {
     if let Some(icon) = icon.filter(|icon| saved_here(icon)) {
         let _ = fs::remove_file(icon);
+
+        image::gone(icon);
     }
 }
 

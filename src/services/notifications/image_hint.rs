@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use png::{BitDepth, ColorType, Encoder};
 
 use crate::Value;
+use crate::graphics::image;
 
 // the spec renamed this hint twice, senders still use all three names
 const DATA_HINTS: [&str; 3] = ["image-data", "image_data", "icon_data"];
@@ -47,6 +48,8 @@ pub fn remove(image: &str) {
 
     if path.parent() == Some(&folder()) {
         let _ = fs::remove_file(path);
+
+        image::gone(path);
     }
 }
 
@@ -130,7 +133,6 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
-    use crate::graphics::image;
 
     #[test]
     fn saves_image_data_as_png() {
