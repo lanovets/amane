@@ -75,6 +75,14 @@ fn save(hint: &Value) -> Option<PathBuf> {
 
     let data = data.list();
 
+    // the size has to match the pixels sent, or a bad hint could ask for more memory than there is
+    let row = width.checked_mul(channels)?;
+    let needed = rowstride.checked_mul(height - 1)?.checked_add(row)?;
+
+    if rowstride < row || data.len() < needed {
+        return None;
+    }
+
     let mut pixels = Vec::with_capacity(width * height * 4);
 
     for y in 0..height {
@@ -151,5 +159,22 @@ mod tests {
 
         assert_eq!(*bitmap.pixels, [255, 0, 0, 255, 0, 255, 0, 255]);
         assert!(!Path::new(&path).exists());
+    }
+
+    #[test]
+    fn a_size_bigger_than_the_pixels_is_turned_down() {
+        let number = |value: f64| Value::Number(value);
+
+        let hint = Value::List(vec![
+            number(100_000.0),
+            number(100_000.0),
+            number(400_000.0),
+            Value::Bool(true),
+            number(8.0),
+            number(4.0),
+            Value::List(vec![number(0.0); 16]),
+        ]);
+
+        assert_eq!(save(&hint), None);
     }
 }
