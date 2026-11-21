@@ -44,6 +44,8 @@ pub enum Key {
 
     Backspace,
 
+    Delete,
+
     Space,
 
     Up,

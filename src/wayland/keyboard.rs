@@ -149,7 +149,7 @@ fn typing_keys_repeat(focused_input: bool, window_repeat_text: bool) -> bool {
 fn repeats(key: Key, typing: bool) -> bool {
     match key {
         Key::Up | Key::Down | Key::Left | Key::Right => true,
-        Key::Backspace | Key::Space | Key::Character(_) => typing,
+        Key::Backspace | Key::Delete | Key::Space | Key::Character(_) => typing,
         _ => false,
     }
 }
@@ -160,6 +160,7 @@ fn to_key(event: &KeyEvent) -> Key {
         Keysym::Escape => Key::Escape,
         Keysym::Tab => Key::Tab,
         Keysym::BackSpace => Key::Backspace,
+        Keysym::Delete | Keysym::KP_Delete => Key::Delete,
         Keysym::space => Key::Space,
         Keysym::Up => Key::Up,
         Keysym::Down => Key::Down,
@@ -217,6 +218,7 @@ mod tests {
             Key::Character('a'),
             Key::Space,
             Key::Backspace,
+            Key::Delete,
             Key::Left,
             Key::Right,
         ] {
@@ -238,6 +240,7 @@ mod tests {
             Key::Character('c'),
             Key::Space,
             Key::Backspace,
+            Key::Delete,
             Key::Enter,
             Key::Escape,
             Key::Home,
