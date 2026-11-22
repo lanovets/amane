@@ -22,6 +22,9 @@ const DBUS_PATH: &str = "/org/freedesktop/DBus";
 // where an item is when the program only gives a name
 const ITEM_PATH: &str = "/StatusNotifierItem";
 
+// each item is followed on a thread of its own, so a program can't register without end
+const MAX_ITEMS: usize = 64;
+
 // what an item sends when something amane shows changed, and whether that is its icon
 const SIGNALS: [(&str, bool); 4] = [
     ("NewIcon", true),
@@ -132,6 +135,10 @@ pub fn run() {
 fn register(sources: &mut Vec<Source>, id: u32, service: &str, caller: &str) -> bool {
     let (destination, path) = address(service, caller);
 
+    if sources.len() >= MAX_ITEMS || !allowed(&destination, &path, caller) {
+        return false;
+    }
+
     // the same for every name a program has, and empty when it already left
     let owner = owner(&destination);
 
@@ -220,6 +227,36 @@ fn address(service: &str, caller: &str) -> (String, String) {
         Some((name, path)) => (String::from(name), format!("/{path}")),
         None => (String::from(service), String::from(ITEM_PATH)),
     }
+}
+
+/*
+ * what a program may register: a plain path and name, and no connection but its
+ * own, so it can't have the shell read and call another program's object
+ */
+fn allowed(destination: &str, path: &str, caller: &str) -> bool {
+    valid_path(path)
+        && valid_name(destination)
+        && (!destination.starts_with(':') || destination == caller)
+}
+
+// object path elements are letters, digits and underscores, and the path no longer than the bus allows
+fn valid_path(path: &str) -> bool {
+    path.starts_with('/')
+        && path.len() <= 255
+        && !path.contains("//")
+        && (path.len() == 1 || !path.ends_with('/'))
+        && path
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'/')
+}
+
+// a well-known name like "org.kde.StatusNotifierItem-5-1", or a connection's like ":1.42"
+fn valid_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 255
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b':'))
 }
 
 // the connection behind a name, like ":1.42", which is what signals come from
@@ -378,5 +415,31 @@ mod tests {
                 String::from("/org/ayatana/NotificationItem/steam")
             )
         );
+    }
+
+    #[test]
+    fn lets_a_program_register_itself_only() {
+        let path = "/org/ayatana/NotificationItem/steam";
+
+        assert!(allowed(
+            "org.kde.StatusNotifierItem-5-1",
+            "/StatusNotifierItem",
+            ":1.7"
+        ));
+        assert!(allowed(":1.7", path, ":1.7"));
+
+        // another program's connection
+        assert!(!allowed(":1.9", path, ":1.7"));
+
+        assert!(!allowed("", path, ":1.7"));
+        assert!(!allowed("org.kde.Item", "/a//b", ":1.7"));
+        assert!(!allowed("org.kde.Item", "/a/", ":1.7"));
+        assert!(!allowed("org.kde.Item", "/a b", ":1.7"));
+        assert!(!allowed("org kde", "/a", ":1.7"));
+        assert!(!allowed(
+            "org.kde.Item",
+            &format!("/{}", "a".repeat(255)),
+            ":1.7"
+        ));
     }
 }
