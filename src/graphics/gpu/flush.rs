@@ -1,10 +1,18 @@
+use std::cell::RefMut;
+
 use vello::peniko::{self, ImageData};
 use vello::wgpu::Texture;
 use vello::{AaConfig, RenderParams, Scene};
 
-use super::{Gpu, texture};
+use super::{Gpu, shared, texture};
 
 impl Gpu {
+    pub(super) fn vello(&self) -> RefMut<'_, vello::Renderer> {
+        RefMut::map(self.vello.borrow_mut(), |vello| {
+            vello.get_or_insert_with(|| shared::start_vello(&self.device))
+        })
+    }
+
     // vello always clears what it draws into, so it draws apart and the result is laid on top
     pub(super) fn paint(
         &mut self,
@@ -34,7 +42,7 @@ impl Gpu {
         scene.reset();
 
         for image in borrowed.drain(..) {
-            self.vello.borrow_mut().unregister_texture(image);
+            self.vello().unregister_texture(image);
         }
     }
 
@@ -53,8 +61,7 @@ impl Gpu {
             antialiasing_method: AaConfig::Area,
         };
 
-        self.vello
-            .borrow_mut()
+        self.vello()
             .render_to_texture(
                 &self.device,
                 &self.queue,

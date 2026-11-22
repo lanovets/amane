@@ -110,6 +110,9 @@ impl OpenWindow {
         self.frame_requested = false;
 
         self.gpu.release(false);
+
+        // a hidden picture window would keep its picture until it showed a different one
+        drop(self.leave_picture());
     }
 }
 

@@ -73,7 +73,7 @@ pub struct Gpu {
     window: *mut c_void,
 
     // one renderer for every window, see shared.rs
-    vello: Rc<RefCell<vello::Renderer>>,
+    vello: Rc<RefCell<Option<vello::Renderer>>>,
 
     // images already turned into vello's form, keyed by where the loaded image lives
     images: HashMap<usize, ImageData>,

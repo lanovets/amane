@@ -309,6 +309,19 @@ fn decode_jpeg(bytes: &[u8]) -> Option<Bitmap> {
     Some(bitmap)
 }
 
+// every copy of a file that was deleted, small ones too: its name never comes back
+pub fn gone(path: &Path) {
+    let mut loaded = LOADED.lock().unwrap_or_else(PoisonError::into_inner);
+
+    loaded.slots.retain(|(file, _, _), _| file != path);
+
+    let mut order = std::mem::take(&mut loaded.order);
+
+    order.retain(|key| loaded.slots.contains_key(key));
+
+    loaded.order = order;
+}
+
 // lets go of a full size copy no window draws, or of its decode
 pub fn unused(path: &Path) {
     let mut loaded = LOADED.lock().unwrap_or_else(PoisonError::into_inner);

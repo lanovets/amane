@@ -82,7 +82,7 @@ impl Apps {
 }
 
 fn scan() -> Vec<DesktopApp> {
-    let icon_folders = icons::read_icon_folders();
+    let icon_folders = icons::without_empty(icons::read_icon_folders());
 
     // a file in an earlier dir overrides one with the same id in a later dir
     let mut seen = HashSet::new();

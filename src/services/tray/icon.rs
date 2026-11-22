@@ -9,6 +9,7 @@ use std::sync::LazyLock;
 use png::{BitDepth, ColorType, Encoder};
 
 use crate::Value;
+use crate::graphics::image;
 use crate::services::apps::icons;
 
 // under the cache folder, on disk: a runtime folder is memory, and no process's numbers count it
@@ -90,6 +91,8 @@ fn named(name: &str, folder: &str) -> Option<PathBuf> {
 pub fn remove(icon: Option<&Path>) {
     if let Some(icon) = icon.filter(|icon| saved_here(icon)) {
         let _ = fs::remove_file(icon);
+
+        image::gone(icon);
     }
 }
 

@@ -51,7 +51,9 @@ impl Idle {
 
 fn set_held(held: bool) {
     HELD.store(held, Ordering::Relaxed);
-    HELD_CHANGED.store(true, Ordering::Relaxed);
+
+    // released after HELD, so the event loop that sees the change sees the new value too
+    HELD_CHANGED.store(true, Ordering::Release);
 
     changes::ping();
 }
@@ -111,7 +113,7 @@ impl WaylandState {
 
     // a fresh notification counts from when it's made, which is how a release starts over
     pub fn follow_idle_hold(&mut self) {
-        if !HELD_CHANGED.swap(false, Ordering::Relaxed) {
+        if !HELD_CHANGED.swap(false, Ordering::Acquire) {
             return;
         }
 
@@ -172,6 +174,11 @@ impl Dispatch<ExtIdleNotificationV1, IdleTimeout> for WaylandState {
                 (timeout.idle)();
             }
             ext_idle_notification_v1::Event::Resumed => {
+                // its idle was skipped for a hold, so there is nothing to resume
+                if !state.idle_watches[place].idled {
+                    return;
+                }
+
                 state.idle_watches[place].idled = false;
 
                 (timeout.resumed)();
