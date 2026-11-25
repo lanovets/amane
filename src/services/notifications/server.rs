@@ -82,7 +82,6 @@ fn notify(method: &Method) {
         },
 
         transient: hints.transient,
-        sensitive: hints.sensitive,
         category: hints.category,
 
         replaced: false,

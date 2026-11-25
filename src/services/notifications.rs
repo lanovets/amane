@@ -169,7 +169,6 @@ mod tests {
             urgency: Urgency::Normal,
             expires: -1,
             transient: false,
-            sensitive: false,
             category: None,
             replaced: false,
             actions: Vec::new(),

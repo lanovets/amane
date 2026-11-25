@@ -23,9 +23,6 @@ pub struct Notification {
 
     pub(crate) transient: bool,
 
-    // a password manager's marker, so a history can leave the message out
-    pub(crate) sensitive: bool,
-
     pub(crate) category: Option<String>,
 
     // set by Notifications::add when it took the place of one already shown
@@ -105,11 +102,6 @@ impl Notification {
         self.transient
     }
 
-    // set with x-kde-passwordManagerHint: a password or a one-time code
-    pub fn sensitive(&self) -> bool {
-        self.sensitive
-    }
-
     pub fn category(&self) -> Option<&str> {
         self.category.as_deref()
     }
@@ -154,8 +146,6 @@ pub(crate) struct Hints {
 
     pub(crate) transient: bool,
 
-    pub(crate) sensitive: bool,
-
     pub(crate) category: Option<String>,
 }
 
@@ -171,17 +161,8 @@ pub(crate) fn read_hints(hints: &Value) -> Hints {
 
         transient: hints.get("transient").bool(),
 
-        sensitive: sensitive(hints),
-
         category: (!category.is_empty()).then(|| String::from(category)),
     }
-}
-
-// the marker is a string ("secret" or "always"); some senders post a plain true
-fn sensitive(hints: &Value) -> bool {
-    let marker = hints.get("x-kde-passwordManagerHint");
-
-    marker.bool() || matches!(marker.text(), "secret" | "always")
 }
 
 impl Urgency {
@@ -218,15 +199,10 @@ mod tests {
             ("urgency", Value::Number(2.0)),
             ("transient", Value::Bool(true)),
             ("category", Value::Text(String::from("im.received"))),
-            (
-                "x-kde-passwordManagerHint",
-                Value::Text(String::from("secret")),
-            ),
         ]));
 
         assert_eq!(read.urgency, Urgency::Critical);
         assert!(read.transient);
-        assert!(read.sensitive);
         assert_eq!(read.category.as_deref(), Some("im.received"));
     }
 
@@ -236,19 +212,6 @@ mod tests {
 
         assert_eq!(read.urgency, Urgency::Normal);
         assert!(!read.transient);
-        assert!(!read.sensitive);
         assert!(read.category.is_none());
-    }
-
-    #[test]
-    fn the_password_marker_counts_as_a_string_or_a_boolean() {
-        let marker = |value| read_hints(&hint_map([("x-kde-passwordManagerHint", value)]));
-
-        assert!(marker(Value::Text(String::from("always"))).sensitive);
-        assert!(marker(Value::Bool(true)).sensitive);
-
-        // anything else is a notification like any other
-        assert!(!marker(Value::Text(String::from("no"))).sensitive);
-        assert!(!marker(Value::Nothing).sensitive);
     }
 }
