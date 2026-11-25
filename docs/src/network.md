@@ -2,7 +2,7 @@
 
 `Network` shows the current connection and lists Wi-Fi networks, and it can join, leave, and scan. It talks to NetworkManager over D-Bus, so NetworkManager has to be running. Without it, everything reads as offline.
 
-It follows NetworkManager's own change signals, the Wi-Fi strength included, so an idle connection costs nothing. A burst of changes, like joining a network, is fetched once it settles, and a change that leaves what's shown the same doesn't redraw anything.
+It follows NetworkManager's own change signals, so an idle connection costs nothing, and a change of Wi-Fi strength alone, which comes every few seconds, is read from the signal without asking NetworkManager again. A burst of changes, like joining a network, is fetched once it settles, and a change that leaves what's shown the same doesn't redraw anything.
 
 ## A connection label
 

@@ -81,7 +81,12 @@ notify-send "hello" "from amane"
 | `body()` | the text, which may be empty and may hold simple markup like `<b>` |
 | `icon()` | an icon name like `"firefox"`, a file path, or empty |
 | `image()` | a picture for this notification, like an avatar: a file path, a `file://` link, or empty |
-| `urgency()` | `Urgency::Low`, `Normal`, or `Critical` |
+| `urgency()` | `Urgency::Low`, `Normal`, or `Critical`; `Normal` when the sender doesn't say |
+| `expire_timeout()` | how long the sender wants it shown, in milliseconds: `-1` leaves it to the shell, `0` until it's dismissed |
+| `transient()` | whether to show it without keeping it once it closes |
+| `sensitive()` | whether the sender marked it as a password or a one-time code, with `x-kde-passwordManagerHint` |
+| `category()` | the sender's category, like `"im.received"`, if it gave one |
+| `replaced()` | whether it updated a notification already shown, keeping that one's id |
 | `actions()` | the buttons the sender asked for, in order |
 | `has_default_action()` | whether clicking the notification itself does something |
 | `received()` | when it arrived, or when the sender last replaced it, as a `SystemTime` |

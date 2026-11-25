@@ -63,8 +63,6 @@ fn notify(method: &Method) {
 
     let hints = read_hints(hint_values);
 
-    let replaces_id = replaces_id.number() as u32;
-
     let notification = Notification {
         // add() picks the real id
         id: 0,
@@ -77,13 +75,17 @@ fn notify(method: &Method) {
 
         urgency: hints.urgency,
 
-        expires: timeout.number() as i32,
+        // a timeout that is no number leaves it to the shell, as 0 would keep it until dismissed
+        expires: match timeout {
+            Value::Number(milliseconds) => *milliseconds as i32,
+            _ => -1,
+        },
 
         transient: hints.transient,
         sensitive: hints.sensitive,
         category: hints.category,
 
-        replaces_id,
+        replaced: false,
 
         actions,
         has_default,
@@ -92,6 +94,8 @@ fn notify(method: &Method) {
 
         received: SystemTime::now(),
     };
+
+    let replaces_id = replaces_id.number() as u32;
 
     let id = Notifications::write().add(notification, replaces_id);
 

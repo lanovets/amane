@@ -421,7 +421,11 @@ mod tests {
     fn lets_a_program_register_itself_only() {
         let path = "/org/ayatana/NotificationItem/steam";
 
-        assert!(allowed("org.kde.StatusNotifierItem-5-1", "/StatusNotifierItem", ":1.7"));
+        assert!(allowed(
+            "org.kde.StatusNotifierItem-5-1",
+            "/StatusNotifierItem",
+            ":1.7"
+        ));
         assert!(allowed(":1.7", path, ":1.7"));
 
         // another program's connection
@@ -432,6 +436,10 @@ mod tests {
         assert!(!allowed("org.kde.Item", "/a/", ":1.7"));
         assert!(!allowed("org.kde.Item", "/a b", ":1.7"));
         assert!(!allowed("org kde", "/a", ":1.7"));
-        assert!(!allowed("org.kde.Item", &format!("/{}", "a".repeat(255)), ":1.7"));
+        assert!(!allowed(
+            "org.kde.Item",
+            &format!("/{}", "a".repeat(255)),
+            ":1.7"
+        ));
     }
 }

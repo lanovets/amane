@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use crate::{Argument, Bus};
 
-use super::AccessPoint;
 use super::manager::{self, NAME, PATH};
 use super::profile;
+use super::{AccessPoint, Radio};
 
 const DEVICE: &str = "org.freedesktop.NetworkManager.Device";
 
@@ -78,13 +78,14 @@ fn pick(states: &[f64], seen: impl Fn(usize) -> usize) -> usize {
     best.0
 }
 
-// the networks the device saw in its last scan, strongest first
-pub fn access_points(device: &str) -> Vec<AccessPoint> {
+// the networks the device saw in its last scan, strongest first, and every access point behind them
+pub fn access_points(device: &str) -> (Vec<AccessPoint>, Vec<Radio>) {
     let active = Bus::system().property(NAME, device, WIRELESS, "ActiveAccessPoint");
 
     let paths = Bus::system().call(NAME, device, WIRELESS, "GetAllAccessPoints", &[]);
 
     let mut access_points = Vec::new();
+    let mut radios = Vec::new();
 
     for path in paths.list() {
         let properties = manager::access_point(path.text());
@@ -92,6 +93,13 @@ pub fn access_points(device: &str) -> Vec<AccessPoint> {
         let is_active = path.text() == active.text();
 
         let access_point = AccessPoint::from_properties(&properties, is_active);
+
+        // kept even when hidden, so its strength changing is known and fetches nothing
+        radios.push(Radio {
+            path: String::from(path.text()),
+            ssid: access_point.ssid.clone(),
+            strength: access_point.strength,
+        });
 
         // hidden networks have no name to show or join by
         if access_point.ssid.is_empty() {
@@ -109,7 +117,7 @@ pub fn access_points(device: &str) -> Vec<AccessPoint> {
 
     access_points.sort_by_key(|a| std::cmp::Reverse(a.strength));
 
-    access_points
+    (access_points, radios)
 }
 
 // still joining a network, not yet up

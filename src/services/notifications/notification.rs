@@ -18,8 +18,7 @@ pub struct Notification {
 
     pub(crate) urgency: Urgency,
 
-    // milliseconds the sender asked it to live: -1 is the server's default,
-    // 0 means until it is dismissed, a positive value is exact
+    // milliseconds the sender asked it to live: -1 leaves it to the shell, 0 until it is dismissed
     pub(crate) expires: i32,
 
     pub(crate) transient: bool,
@@ -29,8 +28,8 @@ pub struct Notification {
 
     pub(crate) category: Option<String>,
 
-    // the notification this one replaced, or 0 for a new one
-    pub(crate) replaces_id: u32,
+    // set by Notifications::add when it took the place of one already shown
+    pub(crate) replaced: bool,
 
     // the "default" action is kept apart, it has no button of its own
     pub(crate) actions: Vec<Action>,
@@ -115,9 +114,9 @@ impl Notification {
         self.category.as_deref()
     }
 
-    // the id this one replaced, or 0 when it is new
-    pub fn replaces_id(&self) -> u32 {
-        self.replaces_id
+    // whether it updated one already shown, which keeps the same id
+    pub fn replaced(&self) -> bool {
+        self.replaced
     }
 
     // the buttons to show, in the order the sender gave them
