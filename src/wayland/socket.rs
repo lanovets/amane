@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::Write;
 use std::os::unix::net::{UnixListener, UnixStream};
+use std::sync::Arc;
 use std::time::Duration;
 
 use smithay_client_toolkit::reexports::calloop::{
@@ -12,13 +13,20 @@ use crate::ipc::{IpcCall, IpcHandlers, ipc_socket};
 use super::WaylandState;
 
 pub fn insert(handle: &LoopHandle<'static, WaylandState>, handlers: IpcHandlers) {
+    let handlers = Arc::new(handlers);
     let source = Generic::new(listen(), Interest::READ, Mode::Level);
 
     handle
         .insert_source(source, move |_, listener, state| {
             // a failed call only loses that call, the shell keeps running
             if let Ok((stream, _)) = listener.accept() {
-                answer(stream, &handlers);
+                let handlers = Arc::clone(&handlers);
+
+                // A call may wait on a job of its own, such as a capture child
+                // that has not finished. It waits on this connection's thread,
+                // so the reply is still the job's real result while the shell
+                // keeps drawing and taking the next call.
+                std::thread::spawn(move || answer(stream, &handlers));
 
                 state.request_frames();
             }
