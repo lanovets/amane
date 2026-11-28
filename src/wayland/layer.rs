@@ -30,6 +30,7 @@ pub struct Settings {
     pub layer: Layer,
     pub keyboard: Keyboard,
     pub zone: Zone,
+    pub exclusive_zone: Option<i32>,
 
     pub namespace: &'static str,
 
@@ -49,6 +50,7 @@ impl From<&LayerWindow> for Settings {
             layer: window.layer,
             keyboard: window.keyboard,
             zone: window.zone,
+            exclusive_zone: window.exclusive_zone,
 
             namespace: window.namespace,
 
@@ -184,6 +186,10 @@ fn to_interactivity(keyboard: Keyboard) -> KeyboardInteractivity {
 }
 
 fn to_exclusive_zone(settings: &Settings, scale_factor: ScaleFactor) -> i32 {
+    if let Some(pixels) = settings.exclusive_zone {
+        return scale_factor.coordinate(pixels);
+    }
+
     match settings.zone {
         Zone::Reserve => measure_thickness(settings, scale_factor),
         Zone::Respect => 0,
@@ -235,6 +241,10 @@ mod tests {
         assert_eq!(to_exclusive_zone(&settings, factor), 0);
         settings.zone = Zone::Ignore;
         assert_eq!(to_exclusive_zone(&settings, factor), -1);
+
+        settings.exclusive_zone = Some(41);
+        assert_eq!(to_exclusive_zone(&settings, factor), 57);
+        settings.exclusive_zone = None;
 
         settings.zone = Zone::Reserve;
         settings.horizontal = Horizontal::Left;

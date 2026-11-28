@@ -16,6 +16,10 @@ pub struct LayerWindow {
     pub(crate) keyboard: Keyboard,
     pub(crate) zone: Zone,
 
+    // some means the strip other windows keep out of, in logical pixels; none
+    // makes Reserve use the window's own height
+    pub(crate) exclusive_zone: Option<i32>,
+
     pub(crate) namespace: &'static str,
 
     pub(crate) visible: bool,
@@ -170,6 +174,17 @@ impl LayerWindow {
         self
     }
 
+    /*
+     * the strip other windows are kept out of, in logical pixels, instead of the window's own height or
+     * width. A surface that grows for a panel uses this to reserve only its bar: the expanded states
+     * then float over windows instead of pushing them down every time they open.
+     */
+    pub fn exclusive_zone(mut self, pixels: i32) -> Self {
+        self.exclusive_zone = Some(pixels);
+
+        self
+    }
+
     // the name compositors match rules on, like niri's layer-rule; only read when the window opens
     pub fn namespace(mut self, namespace: &'static str) -> Self {
         self.namespace = namespace;
@@ -265,6 +280,7 @@ impl LayerWindowNeedsHeight {
             layer: Layer::default(),
             keyboard: Keyboard::default(),
             zone: Zone::default(),
+            exclusive_zone: None,
 
             namespace: "amane",
 
